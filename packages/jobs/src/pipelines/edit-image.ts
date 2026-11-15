@@ -190,7 +190,13 @@ function paramsSchema(op: EditImageOp): Record<string, unknown> {
             type: 'object',
             properties: {
               radius: { type: 'number', description: '笔刷半径（像素）' },
-              points: { type: 'array', items: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 }, minItems: 1 },
+              // 不写等长 minItems/maxItems：Kimi 会把它转成 Moonshot 不接受的元组 Schema；点数仍由 parseEditImageParams 严格检查。
+              points: {
+                type: 'array',
+                description: '折线的像素坐标点，每个点正好是 [x, y] 两个数',
+                items: { type: 'array', items: { type: 'number' } },
+                minItems: 1,
+              },
             },
             required: ['radius', 'points'],
             additionalProperties: false,

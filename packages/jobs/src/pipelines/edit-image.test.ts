@@ -115,6 +115,17 @@ describe('图片编辑参数', () => {
     for (const [op, raw] of bad) expect(() => parseEditImageParams(op, raw), JSON.stringify(raw)).toThrow(expect.objectContaining({ code: 'invalid-request' }));
   });
 
+  it('笔画坐标 Schema 不声明等长元组，兼容 Kimi 的 Moonshot 工具转换', () => {
+    const schema = editImagePipeline('erase', { ffmpeg }).paramsSchema as {
+      properties: { mask: { properties: { strokes: { items: { properties: { points: Record<string, unknown> } } } } } };
+    };
+    const points = schema.properties.mask.properties.strokes.items.properties.points;
+    expect(points.items).toEqual({ type: 'array', items: { type: 'number' } });
+    expect(points.items).not.toHaveProperty('minItems');
+    expect(points.items).not.toHaveProperty('maxItems');
+    expect(points.description).toContain('[x, y]');
+  });
+
   it('滤镜参数里的路径按两层转义', () => {
     expect(filterPath("/tmp/O'Neil, a:b/[m].png")).toBe("/tmp/O\\\\\\'Neil\\, a\\\\:b/\\[m\\].png");
   });
