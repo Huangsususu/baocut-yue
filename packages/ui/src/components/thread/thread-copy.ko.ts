@@ -7,6 +7,7 @@ export const ko: ThreadMessages = {
   copyFailed: '복사하지 못했습니다. 다시 시도하세요',
   copyCode: '코드 복사',
   copyReply: '이 응답 복사',
+  quoteReply: '대화에서 인용',
   change: {
     added: (n) => `추가 ${n}`,
     updated: (n) => `변경 ${n}`,

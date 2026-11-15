@@ -9,6 +9,7 @@ export const de: ThreadMessages = {
   copyFailed: "Kopieren fehlgeschlagen. Erneut versuchen",
   copyCode: "Code kopieren",
   copyReply: "Diese Antwort kopieren",
+  quoteReply: "In Unterhaltung zitieren",
   change: {
     added: (n: number) => `Hinzugefügt: ${n}`,
     updated: (n: number) => `Geändert: ${n}`,

@@ -26,6 +26,7 @@ import { useSkills } from '../../state/skills-store.ts';
 import { AgentMarkdown } from './agent-markdown.tsx';
 import { useBotThreadExtras } from './bot-items.ts';
 import { CopyButton } from './copy-button.tsx';
+import { ReplyQuote } from './reply-quote.tsx';
 import { AnnotationsToken, docsTokenItem, videoTokenItems } from '../annotations-token.tsx';
 import { BRAND_TOKEN_COPY } from '../skills/skills-copy.ts';
 
@@ -264,7 +265,11 @@ export const AgentMessage = memo(function AgentMessage({
   cwd?: string | null;
 }) {
   const bot = useBotThreadExtras()?.agentMessage ?? null;
-  const body = item.text ? <AgentMarkdown text={item.text} streaming={item.streaming} conversationId={conversationId} cwd={cwd} /> : null;
+  const body = item.text ? (
+    <ReplyQuote conversationId={conversationId}>
+      <AgentMarkdown text={item.text} streaming={item.streaming} conversationId={conversationId} cwd={cwd} />
+    </ReplyQuote>
+  ) : null;
   if (bot) {
     return (
       <div className={agentRow} data-role="agent" data-find-item={item.id}>

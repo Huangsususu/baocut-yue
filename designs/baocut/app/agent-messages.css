@@ -10,6 +10,8 @@
 .ath__row { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
 /* ---------- Markdown 正文 ---------- */
+/* 选中回复正文后，选区上方的引用操作（product-design §3.2.2）。 */
+.aquote { position: fixed; z-index: 1000; }
 .amd { min-width: 0; overflow-wrap: anywhere; }
 .amd-block > * + * { margin-top: 8px; }
 .amd p { margin: 0; white-space: pre-line; }

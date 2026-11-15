@@ -109,7 +109,7 @@
       <div className="amsg amsg--ai" data-find-id={m.id}>
         <span className="amsg__av"><Ic n="agent" className="ic--14" /></span>
         <div className="amsg__body">
-          {m.text ? <div data-find-body><AgentMarkdown text={m.text} streaming={!!m.streaming} /></div> : null}
+          {m.text ? <div data-find-body><window.AgentReplyQuote sessionId={sess.id}><AgentMarkdown text={m.text} streaming={!!m.streaming} /></window.AgentReplyQuote></div> : null}
           {m.open && movie && app.openTool ? <div className="amsg__open"><Btn variant="secondary" size="s" onClick={() => app.openTool(movie, m.open.tool, sess.id)}>{m.open.cta || `打开${m.open.label}`}</Btn></div> : null}
           {m.error ? <ErrorMsg m={m} sess={sess} /> : null}
           {m.work ? <WorkMsg m={{id: `work-${m.id}`, items: m.work}} live={live}
@@ -284,6 +284,23 @@
         setAttachments(next); onPatch({draftAppend: null, draftAttachments: next});
       } catch (error) { app.toast(error.message, 'negative'); onPatch({draftAppend: null}); }
     }, [sess.draftAppend]);
+    // 回复选区的引用走一次性请求，prependQuote 读取的是输入框此刻的草稿，不会覆盖尚未存回会话的文字。
+    useEffect(() => {
+      if (!sess.draftQuote) return;
+      setDraft(previous => window.BC_AGENT_QUOTE.prependQuote(previous, sess.draftQuote));
+      onPatch({draftQuote: null});
+      requestAnimationFrame(() => {
+        const input = ref.current;
+        if (!input) return;
+        input.focus();
+        const range = document.createRange();
+        range.selectNodeContents(input);
+        range.collapse(false);
+        const selected = document.getSelection();
+        selected.removeAllRanges();
+        selected.addRange(range);
+      });
+    }, [sess.draftQuote]);
     // 编辑器入口把提示词塞进 draft：composer 已经开着时也要接住
     useEffect(() => { if (sess.draft) { setDraft(sess.draft); onPatch({draft: ''}); } }, [sess.draft]);
     useEffect(() => { if (autoFocus && ref.current) ref.current.focus(); }, [autoFocus, sess.id]);

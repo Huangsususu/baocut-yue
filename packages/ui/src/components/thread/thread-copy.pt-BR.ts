@@ -3,7 +3,7 @@ import { pluralForm } from '@baocut/protocol';
 
 export const ptBR: ThreadMessages = {
   withDetail: (text, detail) => `${text} (${detail})`,
-  copy: 'Copiar', copied: 'Copiado', copyFailed: 'Não foi possível copiar. Tente novamente', copyCode: 'Copiar código', copyReply: 'Copiar esta resposta',
+  copy: 'Copiar', copied: 'Copiado', copyFailed: 'Não foi possível copiar. Tente novamente', copyCode: 'Copiar código', copyReply: 'Copiar esta resposta', quoteReply: 'Citar na conversa',
   change: {
     added: (n) => `Adicionado: ${n}`, updated: (n) => `Alterado: ${n}`, deleted: (n) => `Excluído: ${n}`,
     duration: (clock) => `Duração ${clock}`, durationChange: (before, after) => `Duração ${before} → ${after}`, revision: (before, after) => `Versão ${before} → ${after}`,

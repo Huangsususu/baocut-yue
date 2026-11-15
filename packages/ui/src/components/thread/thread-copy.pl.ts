@@ -8,6 +8,7 @@ export const pl: ThreadMessages = {
   copyFailed: "Nie udało się skopiować. Spróbuj ponownie",
   copyCode: "Kopiuj kod",
   copyReply: "Kopiuj tę odpowiedź",
+  quoteReply: "Cytuj w rozmowie",
   change: {
     added: (n) => `Dodano: ${n}`,
     updated: (n) => `Zmieniono: ${n}`,

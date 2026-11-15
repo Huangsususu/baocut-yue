@@ -23,6 +23,7 @@ const en = {
   copyFailed: 'Couldn’t copy. Try again',
   copyCode: 'Copy code',
   copyReply: 'Copy this reply',
+  quoteReply: 'Quote in conversation',
   change: {
     added: (n: number) => `Added ${n}`,
     updated: (n: number) => `Changed ${n}`,

@@ -2,7 +2,7 @@ import type { ThreadMessages } from './thread-copy.ts';
 import { pluralForm } from '@baocut/protocol';
 
 export const fr: ThreadMessages = {
-  withDetail: (text, detail) => `${text} (${detail})`, copy: 'Copier', copied: 'Copié', copyFailed: 'Impossible de copier. Réessayez', copyCode: 'Copier le code', copyReply: 'Copier cette réponse',
+  withDetail: (text, detail) => `${text} (${detail})`, copy: 'Copier', copied: 'Copié', copyFailed: 'Impossible de copier. Réessayez', copyCode: 'Copier le code', copyReply: 'Copier cette réponse', quoteReply: 'Citer dans la conversation',
   change: {
     added: (n) => `${n} ${pluralForm('fr', n, { one: 'ajouté', other: 'ajoutés' })}`, updated: (n) => `${n} ${pluralForm('fr', n, { one: 'modifié', other: 'modifiés' })}`, deleted: (n) => `${n} ${pluralForm('fr', n, { one: 'supprimé', other: 'supprimés' })}`, duration: (clock) => `Durée ${clock}`, durationChange: (before, after) => `Durée ${before} → ${after}`, revision: (before, after) => `Version ${before} → ${after}`, locked: 'La vidéo ne peut pas être modifiée pour le moment', undoStep: (videoName, label) => `Étape annulée dans « ${videoName} » : ${label}`, changed: (videoName, label) => `« ${videoName} » modifié : ${label}`, aria: (label) => `Modification vidéo : ${label}`,
   },

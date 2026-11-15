@@ -7,6 +7,7 @@ export const zhHans: ThreadMessages = {
   copyFailed: '复制失败，请重试',
   copyCode: '复制代码',
   copyReply: '复制这一轮的回复',
+  quoteReply: '引用对话',
   change: {
     added: (n) => `新增 ${n}`,
     updated: (n) => `修改 ${n}`,

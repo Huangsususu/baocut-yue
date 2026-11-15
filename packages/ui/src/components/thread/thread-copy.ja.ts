@@ -7,6 +7,7 @@ export const ja: ThreadMessages = {
   copyFailed: 'コピーできませんでした。再試行してください',
   copyCode: 'コードをコピー',
   copyReply: 'この返答をコピー',
+  quoteReply: '会話で引用',
   change: {
     added: (n) => `追加 ${n}`,
     updated: (n) => `変更 ${n}`,

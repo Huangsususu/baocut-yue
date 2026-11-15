@@ -7,6 +7,7 @@ export const zhHant: ThreadMessages = {
   copyFailed: '無法複製，請重試',
   copyCode: '複製程式碼',
   copyReply: '複製這則回覆',
+  quoteReply: '引用對話',
   change: {
     added: (n) => `新增 ${n}`,
     updated: (n) => `修改 ${n}`,

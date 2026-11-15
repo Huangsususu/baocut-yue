@@ -180,6 +180,7 @@
       "app/model-agent-stream.js",
       "app/model-agent-tools.js",
       "app/model-agent-turn.js",
+      "app/model-agent-quote.js",
       "app/model-agent-fork.js",
       "app/model-agent-import.js",
       "app/model-agent-schedule.js",
@@ -304,6 +305,7 @@
       "app/settings-semantic.jsx",
       "app/page-settings.jsx",
       "app/agent-markdown.jsx",
+      "app/agent-quote.jsx",
       "app/agent-steps.jsx",
       "app/agent-cards.jsx",
       "app/agent-question.jsx",
@@ -547,9 +549,9 @@
       "app/subtitle-active.css",
       "app/subtitle-library.css"
     ],
-    "js": "generated/app.js?v=205615108ea9",
-    "css": "generated/app.css?v=4773824f0990",
-    "bytes": 5302321
+    "js": "generated/app.js?v=c19b42acd711",
+    "css": "generated/app.css?v=da2f9ebd1575",
+    "bytes": 5304371
   },
   "web": {
     "file": "BaoCutWeb.html",

@@ -7,6 +7,7 @@ export const tr: ThreadMessages = {
   copyFailed: "Kopyalanamadı. Yeniden deneyin",
   copyCode: "Kodu kopyala",
   copyReply: "Bu yanıtı kopyala",
+  quoteReply: "Sohbette alıntıla",
   change: {
     added: (n) => `${n} eklendi`,
     updated: (n) => `${n} değiştirildi`,
