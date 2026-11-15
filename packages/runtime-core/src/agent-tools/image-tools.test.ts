@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { RpcError } from '@baocut/protocol';
 import { ImageTools, type ImageToolsDeps } from './image-tools.ts';
 import { ToolError } from './tool-catalog.ts';
@@ -161,6 +162,14 @@ describe('upscale', () => {
 });
 
 describe('retouch', () => {
+  it('笔画坐标导出为普通数值数组，不生成 Moonshot 拒绝的元组 Schema', () => {
+    const schema = z.toJSONSchema(harness('installed').tools.schemas.retouch, { io: 'input' }) as any;
+    const points = schema.properties.mask.properties.strokes.items.properties.points.items;
+    expect(points).toMatchObject({ type: 'array', items: { type: 'number', minimum: 0 } });
+    expect(points).not.toHaveProperty('prefixItems');
+    expect(points.items).not.toBe(false);
+  });
+
   it('按 retouch（command）确认，摘要写明工具、张数、执行者与目录；路径按工作目录解析后启动对应的流程', async () => {
     const { tools, started, confirmed } = harness('missing');
     const mask = { boxes: [{ x: 10, y: 20, width: 30, height: 40 }] };

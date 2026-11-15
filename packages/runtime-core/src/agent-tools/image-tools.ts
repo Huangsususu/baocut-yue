@@ -115,7 +115,8 @@ const schemas = {
           .max(100)
           .optional(),
         strokes: z
-          .array(z.strictObject({ radius: z.number().min(1), points: z.array(z.tuple([z.number().min(0), z.number().min(0)])).min(1).max(10000) }))
+          // 对外 Schema 用普通数组，避免 Kimi 把 z.tuple 转成 Moonshot 不接受的 items: false；两个坐标由流程参数检查保证。
+          .array(z.strictObject({ radius: z.number().min(1), points: z.array(z.array(z.number().min(0))).min(1).max(10000).describe('折线的像素坐标点，每个点正好是 [x, y] 两个数') }))
           .max(500)
           .optional(),
       })
