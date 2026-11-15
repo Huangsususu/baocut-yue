@@ -189,6 +189,8 @@ export const ptBR: ModelsMessages = {
     failed: (message: string) => `Não foi possível salvar: ${message}`,
   },
   capDefault: {
+    transcribeConcurrency: 'Transcrições em paralelo',
+    transcribeConcurrencyDesc: 'Execute até duas tarefas ao mesmo tempo por modelo local. Isso usa mais memória e memória de GPU; a segunda tarefa aguarda quando não há recursos suficientes.',
     label: 'Modelo padrão',
     desc: {
       transcribe:

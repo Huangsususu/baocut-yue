@@ -1499,13 +1499,21 @@ export const methodParamSchemas = {
     })
     .strict(),
   'models.refreshProvider': z.object({ providerId }).strict(),
-  'models.setCapabilityParameters': z
-    .object({
-      capability: z.literal('generateText'),
-      effort: textEffort.nullable().optional(),
-      concurrency: z.number().int().min(1).max(32).nullable().optional(),
-    })
-    .strict(),
+  'models.setCapabilityParameters': z.discriminatedUnion('capability', [
+    z
+      .object({
+        capability: z.literal('generateText'),
+        effort: textEffort.nullable().optional(),
+        concurrency: z.number().int().min(1).max(32).nullable().optional(),
+      })
+      .strict(),
+    z
+      .object({
+        capability: z.literal('transcribe'),
+        concurrency: z.number().int().min(1).max(2).nullable().optional(),
+      })
+      .strict(),
+  ]),
   'models.enable': z.object({ bundleId }).strict(),
   'models.installBatch': z.object({
     bundleIds: z.array(bundleId).min(1).max(16).refine((ids) => new Set(ids).size === ids.length),

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Header, Heading, Picker, PickerItem, PickerSection, Text, ToastQueue } from '@react-spectrum/s2';
+import { Header, Heading, NumberField, Picker, PickerItem, PickerSection, Text, ToastQueue } from '@react-spectrum/s2';
+import { style } from '@react-spectrum/s2/style' with { type: 'macro' };
 import { canReenable, LOCAL_PROVIDER } from '../../model/models-local.ts';
 import {
   AUTO_KEY,
@@ -14,9 +15,11 @@ import { useConnection } from '../../state/connection-store.ts';
 import { useModels } from '../../state/models-store.ts';
 import { CODEX_SWITCH } from '../settings/agent-switch.ts';
 import { useAgentSwitch } from './agent-switch-card.tsx';
-import { chooseCapabilityDefault } from './model-actions.ts';
+import { chooseCapabilityDefault, setTranscribeConcurrency } from './model-actions.ts';
 import { Card, SettingRow } from './model-parts.tsx';
-import { CAP_DEFAULT_COPY, CLOUD_COPY } from './models-copy.ts';
+import { CAP_DEFAULT_COPY, CLOUD_COPY, TEXT_PARAMS_COPY } from './models-copy.ts';
+
+const concurrencyField = style({ width: 112 });
 
 /**
  * 能力页顶上的默认模型（产品设计 §7.6「每种能力一个默认模型」；设计稿 settings-capability.jsx `DefaultPicker`）：
@@ -76,6 +79,9 @@ function DefaultCard({ capability }: { capability: DefaultCapability }) {
     }
   };
 
+  const parameters = view.transcribe.parameters;
+  const transcribeConcurrency = parameters && !('effort' in parameters) ? parameters.concurrency : 1;
+
   return (
     <Card label={copy.label}>
       <SettingRow label={copy.label} desc={copy.desc[capability]}>
@@ -121,6 +127,39 @@ function DefaultCard({ capability }: { capability: DefaultCapability }) {
           ) : null}
         </Picker>
       </SettingRow>
+      {capability === 'transcribe' ? (
+        <TranscribeConcurrencyRow value={transcribeConcurrency} disabled={web || !connected} />
+      ) : null}
     </Card>
+  );
+}
+
+function TranscribeConcurrencyRow({ value, disabled }: { value: number; disabled: boolean }) {
+  const runtime = useRuntime();
+  const [pending, setPending] = useState<number | null>(null);
+  const change = (next: number) => {
+    if (next === value) return;
+    setPending(next);
+    setTranscribeConcurrency(runtime, next)
+      .then((sent) => {
+        if (sent) ToastQueue.neutral(TEXT_PARAMS_COPY.saved, { timeout: 2000 });
+      })
+      .catch((err: Error) => ToastQueue.negative(TEXT_PARAMS_COPY.failed(err.message), { timeout: 5000 }))
+      .finally(() => setPending(null));
+  };
+  return (
+    <SettingRow label={CAP_DEFAULT_COPY.transcribeConcurrency} desc={CAP_DEFAULT_COPY.transcribeConcurrencyDesc}>
+      <NumberField
+        aria-label={CAP_DEFAULT_COPY.transcribeConcurrency}
+        size="S"
+        styles={concurrencyField}
+        minValue={1}
+        maxValue={2}
+        step={1}
+        isDisabled={disabled}
+        value={pending ?? value}
+        onChange={change}
+      />
+    </SettingRow>
   );
 }

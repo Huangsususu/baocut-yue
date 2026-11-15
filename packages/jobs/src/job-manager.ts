@@ -157,7 +157,7 @@ import { publishFile } from './pipelines/transcode.ts';
  * `applications.jsonl`），先落账再提交事务、提交后记回执；重启后先按记下的 `commandId` 查回执，不重复写。
  * 外发调用的预算在产物发布时结算：之后应用成不成功都不影响预算，补做应用不重新调用、不重复计费。
  *
- * Provider 由注册表决定（`ModelServices`）：本机（`local`）每个模型包一个队列、一次一个；已配对的局域网节点
+ * Provider 由注册表决定（`ModelServices`）：本机（`local`）每个模型包一个队列，识别默认一次一个、可设成最多两个；已配对的局域网节点
  * （`node:<nodeId>`，§6.7）每个节点一个队列、一次一个（节点自己排队），不检查本机的模型目录；在线 Provider
  * （`openai`、`google`、`custom:<slug>`，§6.4）每个 Provider 一个队列，并发上限由 Provider 给出（默认 2），不碰本机的
  * 模型包队列与模型目录。结果回来后一律校验、发布、应用。节点的拒绝与失联不重试（`REMOTE_NODE_REJECTED` /
@@ -368,6 +368,8 @@ export interface TranscribeRouter {
   selectTranscribe(target: TranscribeTarget): Promise<TranscribeSelection>;
   /** 一个 `providerId` 的执行者（文件目标的任务只用 `local`）。 */
   transcriber(providerId: string): TranscribeProvider | null;
+  /** 文件目标的转写与视频任务共用同一个模型包队列。 */
+  transcribeQueue?(providerId: string, modelId: string): ProviderQueue;
   /** 所有执行者：停止时关闭，重新启用模型包时通知。 */
   executors(): TranscribeProvider[];
   /** 提交时选择生成能力的 Provider 与模型；除生图的出厂顺序外没有出厂默认，什么都没配置时抛 `CAPABILITY_NOT_CONFIGURED`。 */
@@ -1427,7 +1429,11 @@ export class JobManager {
         resultFile: request.resultFile,
         observer,
       },
-      { transcriber: provider, queue: { key: request.bundleId, concurrency: 1 }, workerFootprint },
+      {
+        transcriber: provider,
+        queue: this.#router.transcribeQueue?.('local', request.bundleId) ?? { key: `local:${request.bundleId}`, concurrency: 1 },
+        workerFootprint,
+      },
     );
     this.#entries.set(jobId, entry);
     this.#log.info('Remote transcription task queued', { jobId, bundleId: request.bundleId, submitter: submitter.kind });

@@ -127,6 +127,8 @@ export interface TranscribeProvider {
    * 超过期限就结束进程）；还在启动或加载时立即兑现，加载在后台继续。
    */
   transcribe(run: TranscribeRun, sink: TranscribeSink, signal: AbortSignal): Promise<TranscribeAttempt>;
+  /** 本地转写每个模型包的 Worker 上限；新任务立即使用，已经在跑的任务不中断。 */
+  setConcurrency?(concurrency: number): void;
   /** 用户重新启用一个模型包：清掉 Provider 自己记下的失败（例如崩溃计数）。 */
   enable?(bundleId: string): void;
   /** 正常停止：关闭持有的进程或连接。 */

@@ -161,6 +161,8 @@ export const vi: ModelsMessages = {
     failed: (message) => `Không thể lưu: ${message}`,
   },
   capDefault: {
+    transcribeConcurrency: 'Số tác vụ phiên âm song song',
+    transcribeConcurrencyDesc: 'Chạy tối đa hai tác vụ cùng lúc cho mỗi mô hình cục bộ. Việc này sử dụng nhiều bộ nhớ và bộ nhớ GPU hơn; tác vụ thứ hai sẽ chờ khi tài nguyên không đủ.',
     label: 'Mô hình mặc định',
     desc: {
       transcribe:

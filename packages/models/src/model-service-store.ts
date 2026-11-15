@@ -5,7 +5,9 @@ import path from 'node:path';
 import {
   AGENT_PROVIDER_PREFIX,
   DEFAULT_TEXT_CONCURRENCY,
+  DEFAULT_TRANSCRIBE_CONCURRENCY,
   MAX_TEXT_CONCURRENCY,
+  MAX_TRANSCRIBE_CONCURRENCY,
   MODEL_SERVICE_CAPABILITIES,
   RpcError,
   TEXT_EFFORTS,
@@ -19,6 +21,7 @@ import {
   type ProviderRefreshStatus,
   type SpeechVoice,
   type TextCapabilityParameters,
+  type TranscribeCapabilityParameters,
   type TextEffort,
 } from '@baocut/protocol';
 import { ModelsModelServiceStore as M } from '@baocut/protocol/messages/models/model-service-store.ts';
@@ -110,7 +113,10 @@ interface ServicesFile {
   providers: Record<string, StoredProvider>;
   defaults: Partial<Record<ModelServiceCapability, ModelRef | null>>;
   /** 能力参数的默认值；没设的字段用出厂值。 */
-  parameters: { generateText?: { effort?: TextEffort; concurrency?: number } };
+  parameters: {
+    generateText?: { effort?: TextEffort; concurrency?: number };
+    transcribe?: { concurrency?: number };
+  };
 }
 
 export interface ModelServiceStorePaths {
@@ -424,6 +430,21 @@ export class ModelServiceStore {
     this.#services.parameters.generateText = next;
     await this.#save();
     return this.textParameters();
+  }
+
+  /** 本地转写每个模型包的并发上限，默认串行。 */
+  transcribeParameters(): TranscribeCapabilityParameters {
+    return { concurrency: this.#services.parameters.transcribe?.concurrency ?? DEFAULT_TRANSCRIBE_CONCURRENCY };
+  }
+
+  /** 改本地转写的并发上限：null 恢复出厂值，undefined 不变。 */
+  async setTranscribeParameters(patch: { concurrency?: number | null }): Promise<TranscribeCapabilityParameters> {
+    const next = { ...this.#services.parameters.transcribe };
+    if (patch.concurrency === null) delete next.concurrency;
+    else if (patch.concurrency !== undefined) next.concurrency = patch.concurrency;
+    this.#services.parameters.transcribe = next;
+    await this.#save();
+    return this.transcribeParameters();
   }
 
   /**
@@ -1016,6 +1037,18 @@ function parseServices(value: unknown): { services: ServicesFile; legacy: boolea
       stored.concurrency = concurrency;
     }
     parameters.generateText = stored;
+  }
+  const transcribe = isObject(value.parameters) ? value.parameters.transcribe : undefined;
+  if (isObject(transcribe)) {
+    const concurrency = transcribe.concurrency;
+    if (
+      typeof concurrency === 'number' &&
+      Number.isInteger(concurrency) &&
+      concurrency >= 1 &&
+      concurrency <= MAX_TRANSCRIBE_CONCURRENCY
+    ) {
+      parameters.transcribe = { concurrency };
+    }
   }
   return { services: { formatVersion: 2, providers, defaults, parameters }, legacy };
 }

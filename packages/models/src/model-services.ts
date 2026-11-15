@@ -1,5 +1,6 @@
 import {
   DEFAULT_TEXT_CONCURRENCY,
+  DEFAULT_TRANSCRIBE_CONCURRENCY,
   MODEL_SERVICE_CAPABILITIES,
   RpcError,
   type AddProviderAccountRequest,
@@ -7,6 +8,7 @@ import {
   type LinkProviderAccountsRequest,
   type LinkProviderAccountsResult,
   type CapabilityView,
+  type CapabilityParameters,
   type ConfigureProviderRequest,
   type ModelCapabilitiesView,
   type ModelInfoByCapability,
@@ -108,6 +110,7 @@ export class ModelServices {
     this.#view = emptyView();
     this.#viewKey = JSON.stringify(this.#view);
     this.#textRunner = new TextRunner({ concurrency: (providerId) => this.#textConcurrency(providerId) });
+    this.transcriber('local')?.setConcurrency?.(this.store.transcribeParameters().concurrency);
   }
 
   /** `models.capabilities`：探测节点（每个至多 2 秒，并行），更新缓存的视图。 */
@@ -221,9 +224,16 @@ export class ModelServices {
     return source;
   }
 
-  /** 改能力参数的默认值（首版只有 `generateText`），返回补全后的值。并发上限对之后排队的调用立即生效。 */
-  async setCapabilityParameters(request: SetCapabilityParametersRequest): Promise<TextCapabilityParameters> {
-    if (request.capability !== 'generateText') throw new RpcError('invalid-request', M.noCapabilityParameters({ capability: request.capability }));
+  /** 改能力参数的默认值，返回补全后的值。并发上限对之后排队的调用立即生效。 */
+  async setCapabilityParameters(request: SetCapabilityParametersRequest): Promise<CapabilityParameters> {
+    if (request.capability === 'transcribe') {
+      const parameters = await this.store.setTranscribeParameters({
+        ...(request.concurrency !== undefined ? { concurrency: request.concurrency } : {}),
+      });
+      this.transcriber('local')?.setConcurrency?.(parameters.concurrency);
+      await this.refresh();
+      return parameters;
+    }
     const parameters = await this.store.setTextParameters({
       ...(request.effort !== undefined ? { effort: request.effort } : {}),
       ...(request.concurrency !== undefined ? { concurrency: request.concurrency } : {}),
@@ -330,7 +340,10 @@ export class ModelServices {
       ...choice,
       bundleId: choice.kind === 'online' ? null : choice.modelId,
       transcriber,
-      queue: source.queue(choice.providerId, choice.modelId),
+      queue:
+        choice.kind === 'local'
+          ? { key: choice.modelId, concurrency: this.store.transcribeParameters().concurrency }
+          : source.queue(choice.providerId, choice.modelId),
     };
   }
 
@@ -432,6 +445,12 @@ export class ModelServices {
     return this.#owner(providerId)?.transcriber(providerId) ?? null;
   }
 
+  /** 文件目标与视频目标共用同一个本地模型包队列。 */
+  transcribeQueue(providerId: string, modelId: string): ProviderQueue {
+    if (providerId === 'local') return { key: modelId, concurrency: this.store.transcribeParameters().concurrency };
+    return this.#owner(providerId)?.queue(providerId, modelId) ?? { key: modelId, concurrency: 1 };
+  }
+
   /** 所有转写执行者（去重）。 */
   executors(): TranscribeProvider[] {
     return [...new Set(this.#sources.flatMap((s) => s.executors()))];
@@ -489,6 +508,7 @@ export class ModelServices {
       if (capability === 'generateImage') entries.sort((a, b) => IMAGE_KIND_ORDER.indexOf(a.kind) - IMAGE_KIND_ORDER.indexOf(b.kind));
       view[capability] = { default: userDefault, effective: effectiveChoice({ capability, userDefault, providers }), providers: entries };
       if (capability === 'generateText') view[capability].parameters = this.store.textParameters();
+      if (capability === 'transcribe') view[capability].parameters = this.store.transcribeParameters();
     }
     const result = view as ModelCapabilitiesView;
     const key = JSON.stringify(result);
@@ -505,5 +525,6 @@ function emptyView(): ModelCapabilitiesView {
   const view = {} as Record<ModelServiceCapability, CapabilityView>;
   for (const capability of MODEL_SERVICE_CAPABILITIES) view[capability] = { default: null, effective: null, providers: [] };
   view.generateText.parameters = { effort: null, concurrency: DEFAULT_TEXT_CONCURRENCY };
+  view.transcribe.parameters = { concurrency: DEFAULT_TRANSCRIBE_CONCURRENCY };
   return view as ModelCapabilitiesView;
 }

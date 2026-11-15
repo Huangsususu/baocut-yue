@@ -148,7 +148,13 @@ describe('JobManager 的资源准入（假 Model Worker）', () => {
   let currentPid: number | null;
 
   async function start(
-    options: { idleMs?: number; cancelGraceMs?: number; manifests?: RepoManifestSpec[]; bundles?: BundleDefinition[] } = {},
+    options: {
+      idleMs?: number;
+      cancelGraceMs?: number;
+      transcribeConcurrency?: number;
+      manifests?: RepoManifestSpec[];
+      bundles?: BundleDefinition[];
+    } = {},
   ) {
     catalog = new ModelCatalog({ root: path.join(dir, 'models'), bundles: options.bundles ?? BUNDLES, manifests: options.manifests });
     scheduler = new ResourceScheduler({ capacity: new FakeCapacity(), reserves: NO_RESERVES });
@@ -182,10 +188,14 @@ describe('JobManager 的资源准入（假 Model Worker）', () => {
       diagnosticsDir: path.join(dir, 'logs', 'diagnostics'),
     };
     const sources = [new LocalProviderSource({ catalog, transcriber: provider })];
+    const services = new ModelServices({ store, sources });
+    if (options.transcribeConcurrency !== undefined) {
+      await services.setCapabilityParameters({ capability: 'transcribe', concurrency: options.transcribeConcurrency });
+    }
     manager = new JobManager({
       paths,
       catalog,
-      router: new ModelServices({ store, sources }),
+      router: services,
       videos: new FakeVideos(audio),
       resources: scheduler,
     });
@@ -316,6 +326,25 @@ describe('JobManager 的资源准入（假 Model Worker）', () => {
     await until(() => scheduler.outstanding === 0);
     expect(alive(currentPid)).toBe(false);
     expect(releasedWhileAlive).toEqual([false]);
+  });
+
+  it('转写并发设为 2 时，资源只够一个 Worker 就仍然只启动一个', async () => {
+    await start({ transcribeConcurrency: 2 });
+    const first = await manager.submitTranscribe(
+      { videoId: 'mov_1', assetId: 'ast_1', bundleId: 'fake@cpu#slow', hint: 'first' },
+      { kind: 'connection', id: 'conn_1' },
+    );
+    const second = await manager.submitTranscribe(
+      { videoId: 'mov_1', assetId: 'ast_1', bundleId: 'fake@cpu#slow', hint: 'second' },
+      { kind: 'connection', id: 'conn_1' },
+    );
+    await until(() => manager.inspect(first.jobId).state === 'running');
+    await until(() => manager.inspect(second.jobId).wait?.reason === 'resources');
+    expect(manager.inspect(second.jobId)).toMatchObject({ state: 'queued', wait: { reason: 'resources', dimensions: ['memory'] } });
+    await until(() => provider.workerPids('fake@cpu#slow').length === 1);
+    expect(provider.workerPids('fake@cpu#slow')).toHaveLength(1);
+    await Promise.all([manager.settled(first.jobId), manager.settled(second.jobId)]);
+    expect(manager.inspect(second.jobId).state).toBe('completed');
   });
 
   it('Model Worker 的需求按提交时要加载的权重估计（candle 在 CPU 上，计在内存）：没装的可选组件不计，装上之后计入；不知道权重多大时用固定值', async () => {

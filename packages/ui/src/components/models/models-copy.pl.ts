@@ -162,6 +162,8 @@ export const pl: ModelsMessages = {
     failed: (message: string) => `Nie udało się zapisać: ${message}`,
   },
   capDefault: {
+    transcribeConcurrency: 'Równoległe transkrypcje',
+    transcribeConcurrencyDesc: 'Uruchamia maksymalnie dwa zadania jednocześnie dla każdego modelu lokalnego. Zużywa więcej pamięci RAM i GPU; przy braku zasobów drugie zadanie czeka.',
     label: 'Model domyślny',
     desc: {
       transcribe:

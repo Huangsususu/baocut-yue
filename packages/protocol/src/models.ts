@@ -797,7 +797,7 @@ export interface ModelInfoByCapability {
 }
 
 /**
- * 只属于某一种能力的调用参数的默认值（架构设计 §6.8）。首版只有 `generateText`：
+ * 只属于某一种能力的调用参数的默认值（架构设计 §6.8）。`generateText`：
  * - `effort`：请求没给推理强度时用的那一档；null 表示交给模型自己的默认；
  * - `concurrency`：每个 Provider 同时进行的文本请求数（任务与进程内调用共用这个上限），默认 4。
  */
@@ -808,9 +808,17 @@ export interface TextCapabilityParameters {
 export const DEFAULT_TEXT_CONCURRENCY = 4;
 export const MAX_TEXT_CONCURRENCY = 32;
 
+/** 本地转写每个模型包同时运行的任务数；视频任务与局域网文件任务共用。 */
+export interface TranscribeCapabilityParameters {
+  concurrency: number;
+}
+export const DEFAULT_TRANSCRIBE_CONCURRENCY = 1;
+export const MAX_TRANSCRIBE_CONCURRENCY = 2;
+export type CapabilityParameters = TextCapabilityParameters | TranscribeCapabilityParameters;
+
 /** `models.setCapabilityParameters` 的参数：给出的字段替换，null 恢复默认，不给不变。 */
 export interface SetCapabilityParametersRequest {
-  capability: 'generateText';
+  capability: 'generateText' | 'transcribe';
   effort?: TextEffort | null;
   concurrency?: number | null;
 }
@@ -972,17 +980,17 @@ export interface ModelRef {
 }
 
 /** 一种能力的视图：用户默认值、不显式指定时实际会用的 Provider 与模型、各 Provider。 */
-export interface CapabilityView<C extends ModelServiceCapability = ModelServiceCapability> {
+export interface CapabilityView<C extends ModelServiceCapability = ModelServiceCapability, P extends CapabilityParameters = CapabilityParameters> {
   /** 用户设的默认值；指向的 Provider 不可用时照样保留（§6.8）。例外：删除本地模型包时，没有出厂默认的能力里指向它的默认值清除。 */
   default: ModelRef | null;
   /** 不显式指定时用哪个（§6.2 的第 2、3 条）；用户默认值不可用、或什么都没有时为 null，此时调用以 `CAPABILITY_NOT_CONFIGURED` 拒绝。 */
   effective: (ModelRef & { source: 'user-default' | 'factory-default' }) | null;
   providers: ProviderCapabilityView<ModelInfoByCapability[C]>[];
-  /** 这种能力的参数默认值（只有 `generateText` 有），已经补上了出厂值。 */
-  parameters?: TextCapabilityParameters;
+  /** 这种能力的参数默认值（`generateText` 与 `transcribe` 有），已经补上了出厂值。 */
+  parameters?: P;
 }
 
-export type ModelCapabilitiesView = { [C in ModelServiceCapability]: CapabilityView<C> };
+export type ModelCapabilitiesView = { [C in ModelServiceCapability]: CapabilityView<C, C extends 'generateText' ? TextCapabilityParameters : C extends 'transcribe' ? TranscribeCapabilityParameters : never> };
 
 /** `CAPABILITY_NOT_CONFIGURED` 的 `reason`。`signed-out` 与 `outdated` 只出自智能体 Provider（§6.9）。 */
 export type CapabilityNotConfiguredReason =

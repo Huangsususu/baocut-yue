@@ -568,10 +568,10 @@ export class RuntimeSession {
     return ref;
   }
 
-  /** 设置文本生成的参数默认值（推理强度、并发上限）：给出的字段替换，null 恢复出厂值，不给不变。返回补全后的值。 */
+  /** 设置能力参数默认值：给出的字段替换，null 恢复出厂值，不给不变。返回补全后的值。 */
   async setCapabilityParameters(
     request: import('@baocut/protocol').SetCapabilityParametersRequest,
-  ): Promise<import('@baocut/protocol').TextCapabilityParameters> {
+  ): Promise<import('@baocut/protocol').CapabilityParameters> {
     const { parameters } = await this.client.request('models.setCapabilityParameters', request);
     return parameters;
   }

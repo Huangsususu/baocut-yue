@@ -176,6 +176,8 @@ export const ja: ModelsMessages = {
     failed: (message: string) => `保存できませんでした：${message}`,
   },
   capDefault: {
+    transcribeConcurrency: '並行文字起こしタスク数',
+    transcribeConcurrencyDesc: 'ローカルモデルごとに最大 2 つのタスクを同時に実行します。メモリと GPU メモリの使用量が増え、リソースが不足する場合は 2 つ目のタスクが待機します。',
     label: 'デフォルトのモデル',
     desc: {
       transcribe:

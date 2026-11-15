@@ -21,7 +21,7 @@
   const D = window.BC_DATA;
   const NV = () => window.BC_SETTINGS_NAV;
   const PARAMS = {
-    transcribe: {max: 8, desc: '同时发给 API 提供方的转录请求上限（1–8）。遇到限速就调低。'},
+    transcribe: {max: 2, desc: '每个本地模型同时转录的任务数（1–2）。并行会占用更多内存和显存；资源不足时第二个任务会等待。'},
     tts: {max: 8, desc: '逐句配音、旁白时同时发出的合成请求上限（1–8）。遇到限速就调低。'},
     text: {max: 16, desc: '润色、翻译时同时发出的请求上限（1–16）。遇到限速就调低。'},
     image: {max: 4, desc: '批量生图时同一家同时发出的请求上限（1–4）。遇到限速就调低。'},

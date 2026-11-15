@@ -79,6 +79,21 @@ describe('ModelServiceStore', () => {
     expect((await open()).configView('agent:codex')).toMatchObject({ enabled: true, enabledAt: 't1' });
   });
 
+  it('本地转写并发默认 1，可持久化为 2、恢复默认；非法旧值按默认处理', async () => {
+    const store = await open();
+    expect(store.transcribeParameters()).toEqual({ concurrency: 1 });
+    await store.setTranscribeParameters({ concurrency: 2 });
+    expect((await open()).transcribeParameters()).toEqual({ concurrency: 2 });
+    await store.setTranscribeParameters({ concurrency: null });
+    expect((await open()).transcribeParameters()).toEqual({ concurrency: 1 });
+
+    await fs.writeFile(
+      paths.modelServicesFile,
+      JSON.stringify({ formatVersion: 2, providers: {}, defaults: {}, parameters: { transcribe: { concurrency: 8 } } }),
+    );
+    expect((await open()).transcribeParameters()).toEqual({ concurrency: 1 });
+  });
+
   it('只读视图从不回显密钥；enabledAt 在重复启用时不变，停用时清空', async () => {
     const store = await open();
     await store.updateProvider('openai', { enabled: true, credential: KEY }, () => 't1');

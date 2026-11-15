@@ -178,6 +178,8 @@ export const ko: ModelsMessages = {
     failed: (message: string) => `저장하지 못했습니다: ${message}`,
   },
   capDefault: {
+    transcribeConcurrency: '병렬 전사 작업 수',
+    transcribeConcurrencyDesc: '로컬 모델당 최대 두 개의 작업을 동시에 실행합니다. 메모리와 GPU 메모리를 더 사용하며, 리소스가 부족하면 두 번째 작업은 대기합니다.',
     label: '기본 모델',
     desc: {
       transcribe:

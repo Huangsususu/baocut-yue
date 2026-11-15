@@ -55,15 +55,15 @@ import {
   type WorkerEvent,
   type WorkerExit,
 } from '@baocut/process-host';
-import type { FrozenImageInput } from '@baocut/protocol';
+import { DEFAULT_TRANSCRIBE_CONCURRENCY, MAX_TRANSCRIBE_CONCURRENCY, type FrozenImageInput } from '@baocut/protocol';
 import { silentLog, type JobsLogger } from './jobs-logger.ts';
 import { modelWorkerHolder } from './resource-profiles.ts';
 
 /**
  * 本地 Provider：按模型包管理 Model Worker 进程（架构设计 §6.5）。
  *
- * - 一个模型包最多一个进程，按需启动：`worker.hello`（60 秒）→ `model.load`（不限时）→ `job.run`；
- *   一个进程一次只跑一个任务（排队在 JobManager）。
+ * - 一个模型包按需启动 Worker：`worker.hello`（60 秒）→ `model.load`（不限时）→ `job.run`；
+ *   一个进程一次只跑一个任务（排队在 JobManager）。识别最多两个进程，其余能力一个。
  * - 空闲 `idleMs`（默认 10 分钟）后 `model.unload` 再关 stdin；下一个任务等它真的退出后再起新进程。
  * - 取消：`job.cancel`，期限（默认 5 秒）内 `job.run` 没有以 `cancelled` 返回就结束进程；进程下次按需再起。
  * - 崩溃：任务进行中进程退出，或 `job.run` 返回 `WORKER_PANIC` / `INFERENCE_FAILED` / `DECODE_FAILED`，
@@ -214,7 +214,6 @@ interface Slot {
   retiring: Promise<unknown> | null;
   job: ActiveJob | null;
   idleTimer: ReturnType<typeof setTimeout> | null;
-  crashes: number[];
   /** 下次加载时打开图像编码器：有过图片请求后置上，空闲卸载时放下（图像编码器多占约 1 GB）。 */
   vision: boolean;
 }
@@ -231,7 +230,8 @@ export class LocalTranscribeProvider implements TranscribeProvider {
   readonly #options: LocalProviderOptions;
   readonly #catalog: ModelCatalog;
   readonly #log: JobsLogger;
-  readonly #slots = new Map<string, Slot>();
+  readonly #slots = new Map<string, Slot[]>();
+  readonly #crashes = new Map<string, number[]>();
   readonly #idleMs: number;
   readonly #cancelGraceMs: number;
   readonly #helloTimeoutMs: number;
@@ -240,6 +240,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
   readonly #crashWindowMs: number;
   #closed = false;
   #embedSeq = 0;
+  #transcribeConcurrency = DEFAULT_TRANSCRIBE_CONCURRENCY;
 
   constructor(options: LocalProviderOptions) {
     this.#options = options;
@@ -253,31 +254,43 @@ export class LocalTranscribeProvider implements TranscribeProvider {
     this.#crashWindowMs = options.crashWindowMs ?? 5 * 60_000;
   }
 
-  /** 测试与诊断：某个模型包的 Worker 进程号。 */
+  /** 测试与诊断：某个模型包第一个 Worker 的进程号。 */
   workerPid(bundleId: string): number | null {
-    return this.#slots.get(bundleId)?.loaded?.worker.pid ?? null;
+    return this.#slots.get(bundleId)?.[0]?.loaded?.worker.pid ?? null;
+  }
+
+  /** 测试与诊断：某个模型包当前全部 Worker 的进程号。 */
+  workerPids(bundleId: string): number[] {
+    return (this.#slots.get(bundleId) ?? []).flatMap((slot) => (slot.loaded && slot.loaded.worker.pid !== null ? [slot.loaded.worker.pid] : []));
+  }
+
+  setConcurrency(concurrency: number): void {
+    if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > MAX_TRANSCRIBE_CONCURRENCY) {
+      throw new RangeError(`Invalid transcribe concurrency: ${concurrency}`);
+    }
+    this.#transcribeConcurrency = concurrency;
   }
 
   enable(bundleId: string): void {
-    const slot = this.#slots.get(bundleId);
-    if (slot) slot.crashes = [];
+    this.#crashes.delete(bundleId);
   }
 
   /**
-   * 卸载一个模型包（删除模型包之前，架构设计 §6.3）：空闲的 Worker 按 `model.unload` 正常退出，等它真的退出。
-   * 正在执行任务时不动它，返回 false；没有任务、只是还在加载（任务在加载时被取消）时等加载结束再卸载。
+   * 卸载一个模型包（删除模型包之前，架构设计 §6.3）：空闲的 Worker 按 `model.unload` 正常退出，等它们真的退出。
+   * 任一 Worker 正在执行任务时都不动，返回 false；没有任务、只是还在加载（任务在加载时被取消）时等加载结束再卸载。
    */
   async unload(bundleId: string): Promise<boolean> {
-    const slot = this.#slots.get(bundleId);
-    if (!slot) return true;
-    if (slot.job) return false;
-    if (slot.acquiring) await slot.acquiring.catch(() => {});
-    if (slot.job) return false;
-    this.#clearIdle(slot);
-    slot.vision = false;
-    const loaded = slot.loaded;
-    if (loaded) await this.#retire(slot, loaded.worker, 'unload');
-    await slot.retiring;
+    const slots = this.#slots.get(bundleId);
+    if (!slots) return true;
+    if (slots.some((slot) => slot.job)) return false;
+    await Promise.all(slots.map((slot) => slot.acquiring?.catch(() => {})));
+    if (slots.some((slot) => slot.job)) return false;
+    for (const slot of slots) {
+      this.#clearIdle(slot);
+      slot.vision = false;
+      if (slot.loaded) await this.#retire(slot, slot.loaded.worker, 'unload');
+    }
+    await Promise.all(slots.map((slot) => slot.retiring));
     return true;
   }
 
@@ -552,7 +565,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
       throw error;
     }
     const { worker, hello } = loaded;
-    this.#catalog.setRuntimeState(slot.bundleId, 'busy');
+    this.#syncRuntimeState(slot.bundleId);
     const params: EmbedRunParams = images
       ? { requestId, images: [...images], ...options }
       : { requestId, texts: [...(input as readonly string[])], ...options };
@@ -598,7 +611,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
     } finally {
       this.#release(slot);
       if (slot.loaded?.worker === worker && worker.alive) {
-        this.#catalog.setRuntimeState(slot.bundleId, 'ready');
+        this.#syncRuntimeState(slot.bundleId);
         this.#scheduleIdle(slot);
       }
     }
@@ -607,6 +620,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
   /** 任务结束：清掉 `job`，叫醒下一个等着的 `embed()`。 */
   #release(slot: Slot): void {
     slot.job = null;
+    this.#syncRuntimeState(slot.bundleId);
     slot.waiters.shift()?.();
   }
 
@@ -631,7 +645,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
       const status = await this.#catalog.status(bundleId);
       throw new ProviderFailure('unavailable', L.bundleDisabled(), { reason: status?.reason ?? 'resource', state: status?.state });
     }
-    const slot = this.#slot(bundleId);
+    const slot = this.#runSlot(bundleId, spec.params.capability);
     if (slot.job) throw new ProviderFailure('crashed', L.workerBusy(), { reason: 'worker-busy' });
     this.#clearIdle(slot);
     slot.job = { jobId: spec.jobId, route: spec.route };
@@ -667,7 +681,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
       });
     }
 
-    this.#catalog.setRuntimeState(slot.bundleId, 'busy');
+    this.#syncRuntimeState(slot.bundleId);
     let killedForCancel = false;
     let cancelTimer: ReturnType<typeof setTimeout> | null = null;
     const onAbort = () => {
@@ -745,7 +759,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
       if (cancelTimer) clearTimeout(cancelTimer);
       this.#release(slot);
       if (slot.loaded?.worker === worker && worker.alive) {
-        this.#catalog.setRuntimeState(slot.bundleId, 'ready');
+        this.#syncRuntimeState(slot.bundleId);
         this.#scheduleIdle(slot);
       }
     }
@@ -754,7 +768,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
   async close(): Promise<void> {
     this.#closed = true;
     await Promise.all(
-      [...this.#slots.values()].map(async (slot) => {
+      [...this.#slots.values()].flat().map(async (slot) => {
         this.#clearIdle(slot);
         const loaded = slot.loaded ?? (await slot.acquiring?.catch(() => null)) ?? null;
         if (loaded) await this.#retire(slot, loaded.worker, 'close');
@@ -765,13 +779,27 @@ export class LocalTranscribeProvider implements TranscribeProvider {
 
   // ---- 进程 ----
 
-  #slot(bundleId: string): Slot {
-    let slot = this.#slots.get(bundleId);
-    if (!slot) {
-      slot = { bundleId, loaded: null, acquiring: null, retiring: null, job: null, idleTimer: null, crashes: [], waiters: [], vision: false };
-      this.#slots.set(bundleId, slot);
+  #slot(bundleId: string, index = 0): Slot {
+    let slots = this.#slots.get(bundleId);
+    if (!slots) {
+      slots = [];
+      this.#slots.set(bundleId, slots);
     }
-    return slot;
+    while (slots.length <= index) {
+      slots.push({ bundleId, loaded: null, acquiring: null, retiring: null, job: null, idleTimer: null, waiters: [], vision: false });
+    }
+    return slots[index]!;
+  }
+
+  #runSlot(bundleId: string, capability: string): Slot {
+    const count = capability === 'transcribe' ? this.#transcribeConcurrency : 1;
+    let fallback: Slot | null = null;
+    for (let index = 0; index < count; index++) {
+      const slot = this.#slot(bundleId, index);
+      fallback ??= slot;
+      if (!slot.job) return slot;
+    }
+    return fallback!;
   }
 
   #acquire(slot: Slot, loading: () => void): Promise<Loaded> {
@@ -779,6 +807,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
     loading();
     slot.acquiring ??= this.#spawnAndLoad(slot).finally(() => {
       slot.acquiring = null;
+      this.#syncRuntimeState(slot.bundleId);
     });
     return slot.acquiring;
   }
@@ -805,7 +834,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
     if (!resolved) {
       throw new ProviderFailure('load-failed', L.workerNotFound(), { reason: 'worker-missing' });
     }
-    this.#catalog.setRuntimeState(slot.bundleId, 'loading');
+    this.#syncRuntimeState(slot.bundleId);
     let worker: JsonLineWorker;
     try {
       worker = await JsonLineWorker.start({
@@ -814,7 +843,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
         env: await this.#options.env(),
       });
     } catch (error) {
-      this.#catalog.setRuntimeState(slot.bundleId, null);
+      this.#syncRuntimeState(slot.bundleId);
       throw new ProviderFailure('load-failed', error instanceof WorkerSpawnError ? error.message : L.workerCannotStart(), {
         reason: 'worker-missing',
       });
@@ -826,7 +855,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
 
     const fail = async (failure: ProviderFailure): Promise<never> => {
       await worker.kill().catch(() => {});
-      if (!this.#catalog.blocked(slot.bundleId)) this.#catalog.setRuntimeState(slot.bundleId, null);
+      if (!this.#catalog.blocked(slot.bundleId)) this.#syncRuntimeState(slot.bundleId);
       throw failure;
     };
 
@@ -993,9 +1022,9 @@ export class LocalTranscribeProvider implements TranscribeProvider {
       return fail(new ProviderFailure('load-failed', L.loadFailed({ reason: errorText(error) }), { reason: 'not-installed' }));
     }
 
-    this.#catalog.setRuntimeState(slot.bundleId, 'ready');
     const loaded = { worker, hello, vision: visionLoaded, visionRequested: vision };
     slot.loaded = loaded;
+    this.#syncRuntimeState(slot.bundleId);
     return loaded;
   }
 
@@ -1012,7 +1041,7 @@ export class LocalTranscribeProvider implements TranscribeProvider {
     if (slot.loaded?.worker !== worker) return;
     slot.loaded = null;
     this.#clearIdle(slot);
-    if (!this.#catalog.blocked(slot.bundleId)) this.#catalog.setRuntimeState(slot.bundleId, null);
+    this.#syncRuntimeState(slot.bundleId);
     if (!exit.expected && !slot.job) this.#log.warn('Idle Model Worker exited', { bundleId: slot.bundleId, ...exit });
   }
 
@@ -1022,16 +1051,14 @@ export class LocalTranscribeProvider implements TranscribeProvider {
     this.#clearIdle(slot);
     const done = (async () => {
       if (how === 'kill') return worker.kill();
-      if (how === 'unload') {
-        this.#catalog.setRuntimeState(slot.bundleId, 'unloading');
-        await worker.request('model.unload', {}, { timeoutMs: this.#closeGraceMs }).catch(() => {});
-      }
+      if (how === 'unload') await worker.request('model.unload', {}, { timeoutMs: this.#closeGraceMs }).catch(() => {});
       return worker.close(this.#closeGraceMs);
     })().finally(() => {
       if (slot.retiring === done) slot.retiring = null;
-      if (!slot.loaded && !slot.acquiring && !this.#catalog.blocked(slot.bundleId)) this.#catalog.setRuntimeState(slot.bundleId, null);
+      this.#syncRuntimeState(slot.bundleId);
     });
     slot.retiring = done;
+    this.#syncRuntimeState(slot.bundleId);
     return done;
   }
 
@@ -1054,21 +1081,38 @@ export class LocalTranscribeProvider implements TranscribeProvider {
     slot.idleTimer = null;
   }
 
+  #syncRuntimeState(bundleId: string): void {
+    if (this.#catalog.blocked(bundleId)) return;
+    const slots = this.#slots.get(bundleId) ?? [];
+    const state = slots.some((slot) => slot.job)
+      ? 'busy'
+      : slots.some((slot) => slot.acquiring)
+        ? 'loading'
+        : slots.some((slot) => slot.retiring)
+          ? 'unloading'
+          : slots.some((slot) => slot.loaded)
+            ? 'ready'
+            : null;
+    this.#catalog.setRuntimeState(bundleId, state);
+  }
+
   #recordCrash(slot: Slot): void {
     const now = Date.now();
-    slot.crashes = slot.crashes.filter((t) => now - t < this.#crashWindowMs);
-    slot.crashes.push(now);
-    this.#log.warn('Model Worker crashed', { bundleId: slot.bundleId, recent: slot.crashes.length });
-    if (slot.crashes.length >= this.#crashLimit) {
+    const crashes = (this.#crashes.get(slot.bundleId) ?? []).filter((t) => now - t < this.#crashWindowMs);
+    crashes.push(now);
+    this.#crashes.set(slot.bundleId, crashes);
+    this.#log.warn('Model Worker crashed', { bundleId: slot.bundleId, recent: crashes.length });
+    if (crashes.length >= this.#crashLimit) {
       this.#log.error('Model Worker crashed repeatedly; disabling model bundle', { bundleId: slot.bundleId });
       this.#catalog.block(
         slot.bundleId,
         'error',
         'resource',
-        L.crashedRepeatedly({ minutes: Math.round(this.#crashWindowMs / 60_000), count: slot.crashes.length }),
+        L.crashedRepeatedly({ minutes: Math.round(this.#crashWindowMs / 60_000), count: crashes.length }),
       );
-      const loaded = slot.loaded;
-      if (loaded) void this.#retire(slot, loaded.worker, 'kill');
+      for (const other of this.#slots.get(slot.bundleId) ?? []) {
+        if (other.loaded) void this.#retire(other, other.loaded.worker, 'kill');
+      }
     }
   }
 }

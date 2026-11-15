@@ -105,7 +105,7 @@ import type {
   ProviderRefreshStatus,
   ProviderView,
   SetCapabilityParametersRequest,
-  TextCapabilityParameters,
+  CapabilityParameters,
 } from './models.ts';
 import type { StickerApplyParams, StickerApplyResult, StickerHandleParams } from './sticker-packs.ts';
 import type { PetApplyParams, PetApplyResult, PetHandleParams } from './pets.ts';
@@ -1079,8 +1079,8 @@ export interface RpcMethods extends BotRpcMethods {
    * `refreshed.ok` 为 false 并说明原因；这不是请求的错误。不是在线 Provider 时 `invalid-request`。
    */
   'models.refreshProvider': { params: { providerId: string }; result: { provider: ProviderView; refreshed: ProviderRefreshStatus } };
-  /** 设置一种能力的参数默认值（首版只有 `generateText` 的推理强度与并发上限）；null 恢复出厂值。返回补全后的值。 */
-  'models.setCapabilityParameters': { params: SetCapabilityParametersRequest; result: { parameters: TextCapabilityParameters } };
+  /** 设置一种能力的参数默认值（文本的推理强度与并发上限，本地转写的并发上限）；null 恢复出厂值。返回补全后的值。 */
+  'models.setCapabilityParameters': { params: SetCapabilityParametersRequest; result: { parameters: CapabilityParameters } };
   /** 重新启用一个因反复崩溃而停用的模型包，并清掉加载失败的记录。 */
   'models.enable': { params: { bundleId: string }; result: { bundle: ModelBundleStatus } };
   /**

@@ -211,6 +211,9 @@ const en = {
   /** 能力页顶上的统一默认模型（产品设计 §7.6「每种能力一个默认模型」）：语音识别、语音合成、图像生成。 */
   capDefault: {
     label: 'Default model',
+    transcribeConcurrency: 'Parallel transcriptions',
+    transcribeConcurrencyDesc:
+      'Run up to two tasks at once for each local model. This uses more memory and GPU memory; the second task waits when resources are insufficient.',
     desc: {
       transcribe:
         'Used when a transcription, the command line or the Agent doesn’t name a model. Local, cloud and other-computer models are all listed; ones you can’t use yet are greyed out with the reason. Choosing a model on a tool page only changes that run.',

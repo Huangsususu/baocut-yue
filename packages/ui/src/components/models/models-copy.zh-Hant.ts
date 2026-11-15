@@ -172,6 +172,8 @@ export const zhHant: ModelsMessages = {
     failed: (message: string) => `無法儲存：${message}`,
   },
   capDefault: {
+    transcribeConcurrency: '平行轉錄任務數',
+    transcribeConcurrencyDesc: '每個本機模型最多同時轉錄兩個任務。平行處理會佔用更多記憶體與顯示記憶體；資源不足時，第二個任務會等待。',
     label: '預設模型',
     desc: {
       transcribe:

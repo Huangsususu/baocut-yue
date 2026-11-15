@@ -258,7 +258,8 @@ async function parameters(ctx: Ctx, capability: string | undefined): Promise<Exi
       ...(concurrency !== undefined ? { concurrency } : {}),
     });
   }
-  return ctx.done(result, [describeTextParameters(result.parameters)]);
+  const parameters = result.parameters && 'effort' in result.parameters ? result.parameters : undefined;
+  return ctx.done(result, [describeTextParameters(parameters)]);
 }
 
 /** 链接账号的结果给人读的几行（`models accounts link` 与 `sandbox create --link-accounts-from` 共用）。 */

@@ -62,6 +62,13 @@ export async function setTextConcurrency(session: Session, value: number): Promi
   return true;
 }
 
+/** 本地转写的并行任务数改了；不是 1 或 2 时不提交。 */
+export async function setTranscribeConcurrency(session: Session, value: number): Promise<boolean> {
+  if (value !== 1 && value !== 2) return false;
+  await session.setCapabilityParameters({ capability: 'transcribe', concurrency: value });
+  return true;
+}
+
 /** 本地页的默认模型菜单选了一项。选中的模型包停用或加载失败过时先重新启用（`models.enable` 会让它重新校验，所以只在这时调）。 */
 export async function chooseLocalDefault(
   session: Session,

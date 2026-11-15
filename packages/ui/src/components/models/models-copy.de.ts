@@ -188,6 +188,8 @@ export const de: ModelsMessages = {
     failed: (message: string) => `Speichern fehlgeschlagen: ${message}`,
   },
   capDefault: {
+    transcribeConcurrency: 'Parallele Transkriptionen',
+    transcribeConcurrencyDesc: 'Führt pro lokalem Modell bis zu zwei Aufgaben gleichzeitig aus. Dies benötigt mehr Arbeitsspeicher und GPU-Speicher; bei unzureichenden Ressourcen wartet die zweite Aufgabe.',
     label: 'Standardmodell',
     desc: {
       transcribe:

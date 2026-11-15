@@ -221,6 +221,7 @@ describe('JobManager（假 Model Worker）', () => {
   let catalog: ModelCatalog;
   let videos: FakeVideos;
   let provider: LocalTranscribeProvider;
+  let services: ModelServices;
   let manager: JobManager;
   let events: JobRecord[];
 
@@ -260,7 +261,8 @@ describe('JobManager（假 Model Worker）', () => {
     );
     const sources: ProviderSource[] = [new LocalProviderSource({ catalog, transcriber: provider })];
     if (options.remote) sources.push(fakeNodeSource(options.remote, options.resolveNode ?? (() => null)));
-    manager = new JobManager({ paths, catalog, router: new ModelServices({ store, sources }), videos });
+    services = new ModelServices({ store, sources });
+    manager = new JobManager({ paths, catalog, router: services, videos });
     await manager.open();
     events = [];
     manager.onChange((job) => events.push(job));
@@ -486,6 +488,53 @@ describe('JobManager（假 Model Worker）', () => {
     expect(manager.inspect(first.jobId).timing).toEqual(a.timing);
     expect(manager.inspect(second.jobId).timing).toEqual(b.timing);
   });
+
+  it('本地转写默认串行；设为 2 时用两个独立 Worker，第三个排队；切回 1 后新任务恢复串行', async () => {
+    await start();
+    const serialA = await submit('fake@cpu#slow', { hint: 'serial-a' });
+    const serialB = await submit('fake@cpu#slow', { hint: 'serial-b' });
+    await until(() => manager.inspect(serialA.jobId).state === 'running');
+    expect(manager.inspect(serialB.jobId)).toMatchObject({ state: 'queued', wait: { reason: 'concurrency' } });
+    await Promise.all([manager.settled(serialA.jobId), manager.settled(serialB.jobId)]);
+
+    await services.setCapabilityParameters({ capability: 'transcribe', concurrency: 2 });
+    const jobs = await Promise.all([
+      submit('fake@cpu#slow', { hint: 'parallel-a' }),
+      submit('fake@cpu#slow', { hint: 'parallel-b' }),
+      submit('fake@cpu#slow', { hint: 'parallel-c' }),
+    ]);
+    await until(() => provider.workerPids('fake@cpu#slow').length === 2);
+    expect(jobs.slice(0, 2).map(({ jobId }) => manager.inspect(jobId).state)).toEqual(['running', 'running']);
+    expect(manager.inspect(jobs[2]!.jobId)).toMatchObject({ state: 'queued', wait: { reason: 'concurrency' } });
+    const pids = provider.workerPids('fake@cpu#slow');
+    expect(new Set(pids).size).toBe(2);
+    await Promise.all(jobs.map(({ jobId }) => manager.settled(jobId)));
+    expect(jobs.map(({ jobId }) => manager.inspect(jobId).state)).toEqual(['completed', 'completed', 'completed']);
+
+    await services.setCapabilityParameters({ capability: 'transcribe', concurrency: 1 });
+    const singleA = await submit('fake@cpu#slow', { hint: 'single-a' });
+    const singleB = await submit('fake@cpu#slow', { hint: 'single-b' });
+    await until(() => manager.inspect(singleA.jobId).state === 'running');
+    expect(manager.inspect(singleB.jobId)).toMatchObject({ state: 'queued', wait: { reason: 'concurrency' } });
+    await Promise.all([manager.settled(singleA.jobId), manager.settled(singleB.jobId)]);
+  }, 60_000);
+
+  it('双 Worker 中取消一个任务不影响另一个；卸载等待两个进程都退出', async () => {
+    await start();
+    await services.setCapabilityParameters({ capability: 'transcribe', concurrency: 2 });
+    const first = await submit('fake@cpu#slow', { hint: 'cancel-me' });
+    const second = await submit('fake@cpu#slow', { hint: 'keep-running' });
+    await until(() => provider.workerPids('fake@cpu#slow').length === 2);
+    expect(await provider.unload('fake@cpu#slow')).toBe(false);
+    await manager.cancel(first.jobId);
+    await Promise.all([manager.settled(first.jobId), manager.settled(second.jobId)]);
+    expect(manager.inspect(first.jobId).state).toBe('cancelled');
+    expect(manager.inspect(second.jobId).state).toBe('completed');
+    const pids = provider.workerPids('fake@cpu#slow');
+    expect(pids).toHaveLength(2);
+    expect(await provider.unload('fake@cpu#slow')).toBe(true);
+    expect(pids.every((pid) => !alive(pid))).toBe(true);
+  }, 15_000);
 
   it('模型不收识别提示：照常转写，提示不交给模型，任务从排队到结束都带 hint-ignored 提醒', async () => {
     await start();

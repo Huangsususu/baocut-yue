@@ -16,6 +16,8 @@ export const es: ModelsMessages = {
  textParams: { effort: 'Esfuerzo de razonamiento', effortDesc: 'Solo se aplica a modelos con razonamiento: si un modelo no tiene este nivel, se usa el más cercano; los que no se pueden ajustar lo ignoran. «Automático» usa el predeterminado del modelo.', effortCount: (tunable, total) => total ? ` Se pueden ajustar ${tunable} de los ${count(total, 'modelo conectado', 'modelos conectados')}.` : '', concurrency: 'Solicitudes simultáneas', concurrencyDesc: (min, max) => `Máximo de solicitudes de texto enviadas a cada proveedor a la vez (${min}–${max}), compartido por traducción de subtítulos y generación de texto. Redúcelo si alcanzas límites de frecuencia.`, saved: 'Guardado', failed: (message) => `No se pudo guardar: ${message}` },
  capDefault: {
     label: 'Modelo predeterminado',
+    transcribeConcurrency: 'Transcripciones locales simultáneas',
+    transcribeConcurrencyDesc: 'Ejecuta hasta dos tareas a la vez por modelo local. Usa más memoria y GPU; la segunda espera si no hay recursos suficientes.',
     desc: {
       transcribe:
         'Se usa cuando una transcripción, la línea de comandos o el Agent no indican modelo. Aquí están los modelos locales, en la nube y de otros equipos de la red; los que aún no se pueden usar aparecen atenuados con el motivo. Elegir otro modelo en una herramienta solo cambia esa ejecución.',

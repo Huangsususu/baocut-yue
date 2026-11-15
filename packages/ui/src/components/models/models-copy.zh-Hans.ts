@@ -161,6 +161,8 @@ export const zhHans: ModelsMessages = {
     failed: (message: string) => `没能保存：${message}`,
   },
   capDefault: {
+    transcribeConcurrency: '并行转录任务数',
+    transcribeConcurrencyDesc: '每个本地模型最多同时转录两个任务。并行会占用更多内存和显存；资源不足时，第二个任务会等待。',
     label: '默认模型',
     desc: {
       transcribe:

@@ -189,6 +189,8 @@ export const fr: ModelsMessages = {
     failed: (message: string) => `Impossible d’enregistrer : ${message}`,
   },
   capDefault: {
+    transcribeConcurrency: 'Transcriptions en parallèle',
+    transcribeConcurrencyDesc: 'Exécute jusqu’à deux tâches simultanément par modèle local. Cela utilise davantage de mémoire et de mémoire GPU ; la deuxième tâche attend si les ressources sont insuffisantes.',
     label: 'Modèle par défaut',
     desc: {
       transcribe:

@@ -500,26 +500,28 @@ export class ResourceScheduler {
 
   // ---- 计量 ----
 
-  /** 准入这项工作要新增的量：自己的需求，加上还不存在的 holder 的量。 */
+  /** 准入这项工作要新增的量：自己的需求，加上新 Worker 的 holder 量；已有空闲 Worker 可复用时不重复计。 */
   #additional(request: ResourceRequest, capacity: ResourceCapacity): Amounts {
     const own = chargeOf(request.demand ?? {}, capacity);
-    const holder = request.holder && !this.#holders.has(request.holder.id) ? chargeOf(request.holder.demand, capacity) : ZERO;
+    const current = request.holder ? this.#holders.get(request.holder.id) : undefined;
+    const needsWorker = request.holder && (!current || current.processes <= current.users);
+    const holder = request.holder && needsWorker ? chargeOf(request.holder.demand, capacity) : ZERO;
     const total = {} as Amounts;
     for (const d of RESOURCE_DIMENSIONS) total[d] = own[d] + holder[d];
     total.cpuThreads = Math.min(total.cpuThreads, this.#cpuCeiling(capacity));
     return total;
   }
 
-  /** 已经租出的量：每份租约自己的，加上每个 holder 的（只计一次）。 */
+  /** 已经租出的量：每份租约自己的，加上 holder 的每个在运行或已驻留的 Worker。 */
   #leased(capacity: ResourceCapacity): Amounts {
     const total: Amounts = { ...ZERO };
-    const add = (demand: ResourceDemand) => {
+    const add = (demand: ResourceDemand, count = 1) => {
       const charge = chargeOf(demand, capacity);
       charge.cpuThreads = Math.min(charge.cpuThreads, this.#cpuCeiling(capacity));
-      for (const d of RESOURCE_DIMENSIONS) total[d] += charge[d];
+      for (const d of RESOURCE_DIMENSIONS) total[d] += charge[d] * count;
     };
     for (const lease of this.#leases.values()) add(lease.request.demand ?? {});
-    for (const holder of this.#holders.values()) add(holder.demand);
+    for (const holder of this.#holders.values()) add(holder.demand, Math.max(1, holder.users, holder.processes));
     return total;
   }
 

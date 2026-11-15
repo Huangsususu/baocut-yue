@@ -161,6 +161,8 @@ export const tr: ModelsMessages = {
     failed: (message) => `Kaydedilemedi: ${message}`,
   },
   capDefault: {
+    transcribeConcurrency: 'Paralel transkripsiyonlar',
+    transcribeConcurrencyDesc: 'Her yerel model için aynı anda en fazla iki görev çalıştırır. Daha fazla bellek ve GPU belleği kullanır; kaynaklar yetersizse ikinci görev bekler.',
     label: 'Varsayılan model',
     desc: {
       transcribe:

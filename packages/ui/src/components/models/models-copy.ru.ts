@@ -162,6 +162,8 @@ export const ru: ModelsMessages = {
     failed: (message: string) => `Не удалось сохранить: ${message}`,
   },
   capDefault: {
+    transcribeConcurrency: 'Параллельные транскрипции',
+    transcribeConcurrencyDesc: 'Запускает до двух задач одновременно для каждой локальной модели. Это требует больше оперативной памяти и памяти GPU; при нехватке ресурсов вторая задача ожидает.',
     label: 'Модель по умолчанию',
     desc: {
       transcribe:

@@ -14,6 +14,7 @@ import {
   saveProviderKey,
   setTextConcurrency,
   setTextEffort,
+  setTranscribeConcurrency,
   startProbe,
 } from './model-actions.ts';
 
@@ -168,6 +169,21 @@ describe('文本生成的参数', () => {
   it('Runtime 拒绝时原样抛出', async () => {
     const { session } = fakeSession({ method: 'models.setCapabilityParameters', error: new Error('写不进去') });
     await expect(setTextEffort(session, 'low')).rejects.toThrow('写不进去');
+  });
+});
+
+describe('语音识别的参数', () => {
+  it('本地转写只允许 1 或 2，其他值不提交', async () => {
+    const { session, calls } = fakeSession();
+    expect(await setTranscribeConcurrency(session, 1)).toBe(true);
+    expect(await setTranscribeConcurrency(session, 2)).toBe(true);
+    expect(await setTranscribeConcurrency(session, 0)).toBe(false);
+    expect(await setTranscribeConcurrency(session, 3)).toBe(false);
+    expect(await setTranscribeConcurrency(session, Number.NaN)).toBe(false);
+    expect(calls).toEqual([
+      ['models.setCapabilityParameters', { capability: 'transcribe', concurrency: 1 }],
+      ['models.setCapabilityParameters', { capability: 'transcribe', concurrency: 2 }],
+    ]);
   });
 });
 
